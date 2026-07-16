@@ -1,0 +1,13 @@
+# Install these packages in the conda environment used by this project.
+ase>=3.22
+numpy>=1.24
+scipy>=1.10
+torch>=2.1
+schnetpack>=2.1
+pytorch-lightning>=2.1
+torchmetrics>=1.2
+dscribe>=2.1
+PyYAML>=6.0
+tqdm>=4.66
+pytest>=7.4
+ruff>=0.5

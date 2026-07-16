@@ -1,0 +1,63 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Training outputs and local data
+training_runs/
+logs/
+checkpoints/
+splitting.lock
+*.ckpt
+*.pt
+*.pth
+*.db-shm
+*.db-wal
+
+# Generated descriptor databases and temporary files
+data/processed/
+data/cache/
+*.tmp
+*.bak
+
+# IDEs
+.idea/
+.vscode/
+
+# LaTeX auxiliary files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
