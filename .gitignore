@@ -48,6 +48,7 @@ data/cache/
 .vscode/
 
 # LaTeX auxiliary files
+sample701.tex
 *.aux
 *.bbl
 *.bcf
@@ -61,3 +62,6 @@ data/cache/
 *.run.xml
 *.synctex.gz
 *.toc
+
+# Local experiment scripts
+painn.py

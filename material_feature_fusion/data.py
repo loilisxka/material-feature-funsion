@@ -91,3 +91,47 @@ def summarize_database(path: str | Path, limit: int | None = None) -> DatabaseSu
         has_forces=has_forces,
         has_stress=has_stress,
     )
+
+
+def prepare_schnetpack_database(
+    input_path: str | Path,
+    output_path: str | Path,
+    properties: tuple[str, ...] | None = None,
+) -> Path:
+    """Create a SchNetPack-compatible copy without changing the source DB."""
+
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    if input_path.resolve() == output_path.resolve():
+        raise ValueError("output_path must differ from input_path")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with connect(str(input_path)) as source, connect(str(output_path)) as target:
+        first_row = source.get(1)
+        available = tuple((first_row.data or {}).keys())
+        normalized_properties = properties or available
+        for row in source.select():
+            data = dict(row.data or {})
+            if keys.ENERGY in normalized_properties and keys.ENERGY in data:
+                data[keys.ENERGY] = np.asarray(data[keys.ENERGY]).reshape(1)
+            if keys.FORCES in normalized_properties and keys.FORCES in data:
+                data[keys.FORCES] = np.asarray(data[keys.FORCES])
+            if keys.STRESS in data:
+                data[keys.STRESS] = np.asarray(data[keys.STRESS])
+            target.write(
+                row.toatoms(),
+                key_value_pairs=dict(row.key_value_pairs),
+                data=data,
+            )
+
+        metadata = dict(source.metadata or {})
+        units = dict(metadata.get("_property_unit_dict", {}))
+        units.setdefault(keys.ENERGY, "eV")
+        units.setdefault(keys.FORCES, "eV/Angstrom")
+        if keys.STRESS in available:
+            units.setdefault(keys.STRESS, "eV/Angstrom^3")
+        metadata["_property_unit_dict"] = units
+        metadata.setdefault("_distance_unit", "Angstrom")
+        metadata["normalized_from"] = str(input_path)
+        target.metadata = metadata
+    return output_path

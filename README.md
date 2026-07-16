@@ -50,6 +50,7 @@ row.data["stress"]  -> optional stress tensor
 material_feature_fusion/
   data.py          # row.data 读取、校验和数据库摘要
   descriptors.py   # DScribe 和局部 Coulomb 描述符
+  schnet.py        # 支持可替换原子输入的 SchNet
   fusion.py        # 描述符投影、拼接和门控分析模块
   keys.py          # 统一数据键
 scripts/
@@ -87,7 +88,7 @@ python scripts/prepare_descriptors.py \
   data/processed/example_descriptors.db
 ```
 
-训练 SchNet 基线：
+训练 SchNet：
 
 ```bash
 python scripts/train_schnet.py \
@@ -96,18 +97,32 @@ python scripts/train_schnet.py \
   --max-epochs 100
 ```
 
-当前训练入口首先验证 SchNetPack 的标准能量/力路径。描述符键已经支持加载，但描述符注入 SchNet 原子表示的完整模块将在下一阶段加入，以便先固定数据字段、训练分割和基线评价协议。
+训练入口支持三种初始特征模式：`atomic_numbers` 使用 SchNet 原有的原子序数 Embedding，`dataset` 从 `row.data` 读取逐原子描述符，`realtime` 在模型输入阶段从坐标和周期性信息生成描述符。后两种模式都会替换原始 Embedding，而不是与其相加。
+
+实时模式会在训练输出目录生成一个 SchNetPack 兼容的数据副本，补齐单位 metadata 并把标量标签转换为 NumPy 数组；原始数据库不会被修改。DScribe 的实时计算发生在 CPU/NumPy 路径，适合接口验证，不适合大型数据集的高效训练。大规模实验应优先使用 `prepare_descriptors.py` 缓存描述符。
+
+训练示例：
+
+```bash
+python scripts/train_schnet.py data/raw/example.db \
+  --feature-mode realtime --descriptor-key acsf
+
+python scripts/train_schnet.py data/processed/example_descriptors.db \
+  --feature-mode dataset --descriptor-key acsf
+```
 
 ## 后续实验协议
 
 计划采用以下顺序：
 
-1. SchNet + 元素 Embedding 基线。
-2. SchNet + ACSF、SOAP、局部 Coulomb 单特征实验。
-3. 两两组合和全特征组合。
-4. 拼接、投影后拼接、归一化融合和门控融合消融。
-5. 随机测试、低数据量测试和结构/化学组成 OOD 测试。
+1. `atomic_numbers`：SchNet 原有的原子序数 Embedding。
+2. `dataset`：从 `row.data[descriptor_key]` 读取固定宽度逐原子描述符。
+3. `realtime`：在模型输入阶段由 DScribe 从结构生成描述符。
+4. 在上述三种模式下分别测试 ACSF、SOAP 和局部 Coulomb 单特征。
+5. 后续再加入两两组合、全特征组合和门控融合。
 6. 以力 MAE 为主指标，同时报告能量、应力、参数量和推理成本。
+
+项目内的 `FeatureSchNet` 保留 SchNetPack SchNet 的连续滤波交互结构，只替换初始原子表征：`atomic_numbers` 调用原始 `nn.Embedding`，外部模式先通过 `LayerNorm + Linear` 映射到 `n_atom_basis`，再进入相同的 interaction blocks。因此当前阶段可以严格比较“输入特征替换”本身，而不会同时改变主干网络。
 
 所有主要结果至少使用三个随机种子，并保存配置、数据划分、特征参数和原始预测结果。
 

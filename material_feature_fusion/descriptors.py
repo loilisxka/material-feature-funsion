@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
+import schnetpack.properties as properties
+import torch
 from ase import Atoms
 from ase.neighborlist import neighbor_list
 
@@ -181,6 +183,58 @@ class DescriptorBuilder:
                 raise ValueError(f"Unsupported descriptor: {name}")
             result[name] = builders[name](atoms)
         return result
+
+
+class RuntimeDescriptorModule(torch.nn.Module):
+    """Generate fixed descriptors from a SchNetPack batch at model runtime.
+
+    DScribe operates on ASE/NumPy objects, so this module intentionally moves
+    each structure to CPU, computes a detached descriptor, and returns it on
+    the original tensor device. It is convenient for experiments but slower
+    than reading cached descriptors from the database.
+    """
+
+    def __init__(
+        self,
+        config: DescriptorConfig,
+        species: tuple[str, ...],
+        descriptor_name: str,
+        output_key: str | None = None,
+    ) -> None:
+        super().__init__()
+        if descriptor_name not in keys.DESCRIPTOR_KEYS:
+            raise ValueError(f"Unsupported descriptor: {descriptor_name}")
+        self.builder = DescriptorBuilder(config, species)
+        self.descriptor_name = descriptor_name
+        self.output_key = output_key or descriptor_name
+
+    def forward(self, inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        n_atoms = inputs[properties.n_atoms].detach().cpu().tolist()
+        positions = inputs[properties.position].detach().cpu().numpy()
+        atomic_numbers = inputs[properties.Z].detach().cpu().numpy()
+        cells = inputs[properties.cell].detach().cpu().numpy()
+        pbc = inputs[properties.pbc].detach().cpu().numpy()
+        descriptors = []
+        offset = 0
+        for count, cell, periodic in zip(n_atoms, cells, pbc):
+            end = offset + int(count)
+            atoms = Atoms(
+                numbers=atomic_numbers[offset:end],
+                positions=positions[offset:end],
+                cell=cell,
+                pbc=periodic,
+            )
+            descriptors.append(
+                self.builder.build(atoms, (self.descriptor_name,))[self.descriptor_name]
+            )
+            offset = end
+        values = np.concatenate(descriptors, axis=0)
+        inputs[self.output_key] = torch.as_tensor(
+            values,
+            dtype=inputs[properties.position].dtype,
+            device=inputs[properties.Z].device,
+        )
+        return inputs
 
 
 def build_descriptors(
