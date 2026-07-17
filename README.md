@@ -74,6 +74,26 @@ python -m pip install -r requirements.txt
 
 ## 基础用法
 
+统一命令行入口为 `painn.py`，后续新增特征和处理方式应优先接入这里：
+
+```bash
+python painn.py inspect data/raw/example.db
+python painn.py prepare data/raw/example.db data/processed/example.db \
+  --features acsf soap local_coulomb
+python painn.py train data/processed/example.db \
+  --architecture painn --feature-mode dataset \
+  --features acsf soap --fusion gated_sum
+```
+
+`train` 支持 `atomic_numbers`、`dataset` 和 `realtime` 三种特征来源，
+支持 `acsf`、`soap`、`local_coulomb` 单特征或多特征，并支持 `concat` 和
+`gated_sum` 两种融合方式。每次训练默认创建带日期、数据集、架构、特征和
+处理方式的独立目录，并保存 `hyperparameters.json`、`split.npz` 和
+`splitting.lock`、`best_model`。其中 `best_model` 是验证集 `val_loss` 最优的
+SchNetPack 推理模型。只有传入 `--max-rows` 时才会额外生成用于小数据测试的
+`training_subset.db`。完整参数说明见
+[`docs/CLI_PARAMETERS.md`](docs/CLI_PARAMETERS.md)。
+
 检查数据库：
 
 ```bash

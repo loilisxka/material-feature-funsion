@@ -6,16 +6,24 @@ Core Python code lives in `material_feature_fusion/`: `data.py` validates ASE DB
 
 ## Build, Test, and Development Commands
 
-Use the project Conda environment:
+Use the project Conda environment (managed by the Miniconda installation at
+`/Users/huzheyu/program/miniconda3`):
 
 ```bash
 conda activate material-feature-fusion
+which python  # /Users/huzheyu/program/miniconda3/envs/material-feature-fusion/bin/python
 python -m compileall material_feature_fusion scripts tests
 python -m pytest -q
 ruff check material_feature_fusion scripts tests
 ```
 
-Inspect a database with `python scripts/inspect_db.py path/to/data.db`. Create cached descriptors with `python scripts/prepare_descriptors.py input.db output.db`, then train with `python scripts/train_schnet.py output.db --max-epochs 100`. Use `--feature-mode realtime` to exercise runtime descriptor generation.
+The unified project entry point is `python painn.py`. Inspect a database with
+`python painn.py inspect path/to/data.db`, create cached descriptors with
+`python painn.py prepare input.db output.db`, and train with
+`python painn.py train output.db --max-epochs 100`. Use
+`--feature-mode realtime` to exercise runtime descriptor generation and
+`--max-rows N` for small smoke tests. The older scripts remain available for
+compatibility.
 
 ## Coding Style & Naming Conventions
 

@@ -69,3 +69,27 @@ class DescriptorFusion(nn.Module):
             weights[..., i : i + 1] * value for i, value in enumerate(projected)
         )
         return fused, {name: weights[..., i] for i, name in enumerate(self.names)}
+
+
+class DescriptorFusionInput(nn.Module):
+    """Fuse descriptor tensors already present in a SchNetPack input dict."""
+
+    def __init__(
+        self,
+        feature_keys: tuple[str, ...],
+        input_dims: Mapping[str, int],
+        output_key: str,
+        output_dim: int,
+        mode: str = "concat",
+    ) -> None:
+        super().__init__()
+        if not feature_keys:
+            raise ValueError("feature_keys cannot be empty")
+        self.feature_keys = feature_keys
+        self.output_key = output_key
+        self.fusion = DescriptorFusion(input_dims, output_dim, mode=mode)
+
+    def forward(self, inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        features = {name: inputs[name] for name in self.feature_keys}
+        inputs[self.output_key], _ = self.fusion(features)
+        return inputs

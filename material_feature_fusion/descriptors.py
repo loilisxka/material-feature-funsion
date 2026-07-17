@@ -198,15 +198,22 @@ class RuntimeDescriptorModule(torch.nn.Module):
         self,
         config: DescriptorConfig,
         species: tuple[str, ...],
-        descriptor_name: str,
+        descriptor_name: str | Iterable[str],
         output_key: str | None = None,
     ) -> None:
         super().__init__()
-        if descriptor_name not in keys.DESCRIPTOR_KEYS:
-            raise ValueError(f"Unsupported descriptor: {descriptor_name}")
+        if isinstance(descriptor_name, str):
+            descriptor_names = (descriptor_name,)
+        else:
+            descriptor_names = tuple(descriptor_name)
+        unknown = set(descriptor_names) - set(keys.DESCRIPTOR_KEYS)
+        if unknown:
+            raise ValueError(f"Unsupported descriptor(s): {sorted(unknown)}")
+        if not descriptor_names:
+            raise ValueError("At least one descriptor is required")
         self.builder = DescriptorBuilder(config, species)
-        self.descriptor_name = descriptor_name
-        self.output_key = output_key or descriptor_name
+        self.descriptor_names = descriptor_names
+        self.output_key = output_key
 
     def forward(self, inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         n_atoms = inputs[properties.n_atoms].detach().cpu().tolist()
@@ -214,7 +221,7 @@ class RuntimeDescriptorModule(torch.nn.Module):
         atomic_numbers = inputs[properties.Z].detach().cpu().numpy()
         cells = inputs[properties.cell].detach().cpu().numpy()
         pbc = inputs[properties.pbc].detach().cpu().numpy()
-        descriptors = []
+        descriptors = {name: [] for name in self.descriptor_names}
         offset = 0
         for count, cell, periodic in zip(n_atoms, cells, pbc):
             end = offset + int(count)
@@ -224,16 +231,18 @@ class RuntimeDescriptorModule(torch.nn.Module):
                 cell=cell,
                 pbc=periodic,
             )
-            descriptors.append(
-                self.builder.build(atoms, (self.descriptor_name,))[self.descriptor_name]
-            )
+            values = self.builder.build(atoms, self.descriptor_names)
+            for name, value in values.items():
+                descriptors[name].append(value)
             offset = end
-        values = np.concatenate(descriptors, axis=0)
-        inputs[self.output_key] = torch.as_tensor(
-            values,
-            dtype=inputs[properties.position].dtype,
-            device=inputs[properties.Z].device,
-        )
+        for name, batches in descriptors.items():
+            output_key = self.output_key if len(self.descriptor_names) == 1 else name
+            values = np.concatenate(batches, axis=0)
+            inputs[output_key] = torch.as_tensor(
+                values,
+                dtype=inputs[properties.position].dtype,
+                device=inputs[properties.Z].device,
+            )
         return inputs
 
 
